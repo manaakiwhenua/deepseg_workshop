@@ -200,9 +200,11 @@ def report_weights(model):
 
                     # Plot the filter weights
                     f_weights_RGB = f_weights_NORM[:,:,:3]  # First three channels/layers as an RGB image - will fail for later layers...
+                    axis[f, 0].set_axis_off()
                     axis[f, 0].imshow(f_weights_RGB)  # Plots the first three bands as RGB
                     for b in range(num_bands):
                         # plt.imshow(f_weights_1, cmap='gray')  # Plots the output of Conv2D and MaxPooling
+                        axis[f, b+1].set_axis_off()
                         axis[f, b+1].imshow(f_weights_NORM[:,:,b], cmap='gray', vmin=0, vmax=1)  # Plots the output of Conv2D and MaxPooling. Retains the same scale across bands
                         # plt.imshow(Image.fromarray(f_weights/(np.max(f_weights)/255.0),'RGB'))  # Plots the output of Conv2D and MaxPooling
                 plt.show()
@@ -238,6 +240,7 @@ def report_outputs(model, image_file, image_size):
                 output = outputs[0,:,:,o]
                 #print(output)
                 output_NORM = outputs_NORM[0,:,:,o]
+                axis[o].set_axis_off()
                 axis[o].imshow(output_NORM, cmap='gray', vmin=0, vmax=1)  # Plots the output of Conv2D and MaxPooling. Retains the same stretch across outputs
             plt.show()
 
