@@ -135,6 +135,3 @@ notebooks/scripts
 
 #test scripts
 tests/
-
-#BIM 29/10/2024 - ignore outputs
-notebooks/deep_learning/files/seg_data/seg_clean/out
