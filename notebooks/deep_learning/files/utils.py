@@ -2,9 +2,95 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import tensorflow as tf
-# from tensorflow import keras
+# import tensorflow.keras.backend as K # BIM
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
+
+def confusion(answers, filename=None):
+    '''
+    Generates a confusion matrix from the returned predictions.
+    Parameter 'answers' is a list of (actual, predicted) pairs of class names
+    '''
+
+    correct = 0
+    incorrect = 0
+    confusion = {}
+    classes = []
+    for answer in answers:
+        # Make sure the answer and prediction are in dicts
+        if answer[0] not in classes:
+            classes.append(answer[0])
+        if answer[1] not in classes:
+            classes.append(answer[1])
+        if answer[0] not in confusion:
+            confusion[answer[0]] = {}
+        actual = confusion[answer[0]]
+        if (answer[1] not in actual):
+            actual[answer[1]] = 0
+     
+        actual[answer[1]] += 1
+        if answer[0] == answer[1]:
+            correct += 1
+        else:
+            incorrect += 1
+            print("WRONG:{} actual:{} predicted:{} score:{}".format(answer[3], answer[0], answer[1], answer[2]))
+
+    # Now print it
+    # Set up precision totals
+    predicted_tp = {}
+    predicted_fp = {}
+    for cls in classes:
+        predicted_tp[cls] = 0
+        predicted_fp[cls] = 0
+
+    # Output the header
+    classes.sort()
+    headers = ['_'.join([h[0] for h in cl.split('_')]) for cl in classes] # Truncate class names for column headers
+    print('ACTUAL/PREDICTED'.ljust(30,' ') + '\t'.join(headers) + '\tRECALL')
+    if filename: f.write('ACTUAL/PREDICTED'.ljust(25,' ') + '\t' + '\t'.join(classes) + '\tRECALL\n')
+
+    # Output the rows
+    for cls in classes:
+        print(cls.ljust(30,' '), end = '\t')
+        if filename: f.write(cls.ljust(30,' ') + '\t')
+        tp = 0
+        fn = 0
+        # Output the columns
+        for cls2 in classes:
+            score = (cls in confusion and cls2 in confusion[cls] and confusion[cls][cls2]) or 0
+            if cls == cls2:
+                tp += score
+                predicted_tp[cls2] += score
+            else:
+                fn += score
+                predicted_fp[cls2] += score
+            print(str(score), end='\t')
+            if filename: f.write(str(score) + '\t')
+        # Output recall (if any)
+        if (tp+fn) > 0:
+          print('{:.3f}'.format(tp/(tp+fn)))
+          if filename: f.write('{:.3f}'.format(tp/(tp+fn)) + '\n')
+        else:
+          print('N/A')
+          if filename: f.write('N/A\n')
+        
+
+    # Output the precision
+    print('PRECISION'.ljust(25,' '), end='')
+    if filename: f.write('PRECISION'.ljust(25,' '))
+
+    for cls in classes:   
+        precision = (predicted_tp[cls] > 0 or predicted_fp[cls] > 0) and (predicted_tp[cls]/(predicted_tp[cls] + predicted_fp[cls])) or 0.0
+        print('\t' + '{:.3f}'.format(precision), end='')
+        if filename: f.write('\t' + '{:.3f}'.format(precision))
+    print('\n')
+    if filename: f.write('\n\n')   
+
+    # Output the accuracy
+    print('correct: ' + str(correct) + ' (' + '{:.2f}'.format( 100* correct/(correct+incorrect)) + '%) incorrect: ' + str(incorrect))
+    if filename: f.write('correct: ' + str(correct) + ' (' + '{:.2f}'.format( 100* correct/(correct+incorrect)) + '%) incorrect: ' + str(incorrect) + '\n')
+
+    if filename: f.close()
 
 def test_marginal_perm(test_data_dir, model, image_size):
     """
@@ -46,7 +132,8 @@ def test_marginal_perm(test_data_dir, model, image_size):
 
         img_array = tf.expand_dims(img_array, 0)  # Create a batch
         predictions = model.predict(img_array, verbose=0)
-        scores = tf.nn.softmax(predictions[0])
+        # scores = tf.nn.softmax(predictions[0])
+        scores = predictions[0]
         score = np.max(scores)
         ans = class_names[np.argmax(scores)]
         correct = (ans == image_file[0]) # Filename is prefixed with class
@@ -55,21 +142,21 @@ def test_marginal_perm(test_data_dir, model, image_size):
             loss += 1-score
         else:
             loss += score
-        # print(f"{image_file}: {ans} {score} {correct}")
+        print(f"{image_file}: {ans} {score} {correct}")
     loss = loss/num_images
     print(f"Unpermuted loss:{loss}, correct:{tot_correct}/{num_images} {tot_correct/num_images}")
-    results.append(('All', loss))
+    # results.append(('All', loss))
     
     # print(f"image_data shapes: {image_data[0].shape}")
 
     num_bands = image_data[0].shape[2]
 
     rng = np.random.default_rng()
-    figure, axis = plt.subplots(num_images, num_bands+1)
     for band in range(num_bands):
         # print(f"Permuting band {band} of {num_bands}")
         band_loss = 0
         processed = 0
+        tot_correct = 0
         for i in range(num_images):
             for j in range(num_images):
                 # if i != j: # all permutations
@@ -84,7 +171,8 @@ def test_marginal_perm(test_data_dir, model, image_size):
                     # Compute the loss
                     img_array = tf.expand_dims(perm, 0)  # Create a batch
                     predictions = model.predict(img_array, verbose=0)
-                    scores = tf.nn.softmax(predictions[0])
+                    # scores = tf.nn.softmax(predictions[0])
+                    scores = predictions[0]
                     score = np.max(scores)
                     ans = class_names[np.argmax(scores)]
                     correct = (ans == image_classes[i])
@@ -93,7 +181,7 @@ def test_marginal_perm(test_data_dir, model, image_size):
                         band_loss += 1-score
                     else:
                         band_loss += score
-                    # print(f"{image_file}: {ans} {score} {correct} ")
+                    print(f"{image_file}: {ans} {score} {correct} ")
         band_loss = band_loss/processed
         print(f"Band {band+1}: loss:{band_loss} gain:{band_loss-loss} correct:{tot_correct}/{processed} ({tot_correct/processed})")
         results.append((f'Band {band+1}', band_loss - loss))
@@ -171,13 +259,10 @@ def visualise_L2_weights(model):
 
 def report_weights(model):
     for i in range(len(model.layers)):
-        print("--------------------------- LAYER ----------------------------")
+        # print("--------------------------- LAYER ----------------------------")
         weights = model.layers[i].weights
-        print(f"{model.layers[i].name}: {len(weights)}")
-        if len(weights) > 0:
-            #print(weights[0].shape) # Check if the Output shape matches the shape of Model.summary()
-            #print(weights[1].shape) # Check if the Output shape matches the shape of Model.summary()
-            #print(weights[1])
+        # print(f"{model.layers[i].name}: {len(weights)}")
+        if len(weights) > 0:  # (weights, biases)
             if len(weights[0].shape) == 4 : # Y x X x bands x filters
                 num_bands = weights[0].shape[2]
                 num_filters = weights[0].shape[3]
@@ -192,21 +277,12 @@ def report_weights(model):
                     #print(f"Filter {f+1}/{weights[0].shape[3]}")
                     f_weights = ff_weights[:,:,:,f]
                     f_weights_NORM = ff_weights_NORM[:,:,:,f]
-                    
-                    #f_weights_1 = weights[0][:,:,0,f].numpy() # One channel only - grayscale images
-                    #print(f_weights)
-                    #print(f"NORMALIZED: min={f_min}, max={f_max}")
-                    #print(f_weights_NORM)
-
-                    # Plot the filter weights
-                    f_weights_RGB = f_weights_NORM[:,:,:3]  # First three channels/layers as an RGB image - will fail for later layers...
+                    f_weights_RGB = f_weights_NORM[:,:,:3]  # First three channels/layers as an RGB image
                     axis[f, 0].set_axis_off()
                     axis[f, 0].imshow(f_weights_RGB)  # Plots the first three bands as RGB
                     for b in range(num_bands):
-                        # plt.imshow(f_weights_1, cmap='gray')  # Plots the output of Conv2D and MaxPooling
                         axis[f, b+1].set_axis_off()
-                        axis[f, b+1].imshow(f_weights_NORM[:,:,b], cmap='gray', vmin=0, vmax=1)  # Plots the output of Conv2D and MaxPooling. Retains the same scale across bands
-                        # plt.imshow(Image.fromarray(f_weights/(np.max(f_weights)/255.0),'RGB'))  # Plots the output of Conv2D and MaxPooling
+                        axis[f, b+1].imshow(f_weights_NORM[:,:,b], cmap='gray', vmin=0, vmax=1)
                 plt.show()
             else:
                 print(weights[0])
@@ -218,29 +294,62 @@ def report_outputs(model, image_file, image_size):
     """
     layer_input = img = tf.keras.utils.load_img(image_file, target_size=(image_size, image_size))
     layer_input = tf.expand_dims(layer_input,0)   # Add prefix of Batch Size 
+    model_inputs = model.layers[0].input
+    #if model_inputs == []: # Input layer has no inputs (Sequential drops it so first layer is Rescale)
+    #    model_inputs = model.layers[1].input
+    if 'input' in model.layers[0].name:
+        model_inputs = model.layers[1].input
+    else:
+        model_inputs = model.layers[0].input
+
     for i in range(len(model.layers)):
-        print(f"++++++++++++ OUTPUTS FOR {model.layers[i].name} +++++++++++++++++++")
+        # print(f"++++++++++++ OUTPUTS FOR {model.layers[i].name} +++++++++++++++++++")
+        # print(f"layer_input shape: {layer_input.shape}")
+        # print(f"input[0]: {model.layers[0].input}")
+        # print(f"input[1]: {model.layers[1].input}")
         # get_layer_output = K.function(inputs = model.layers[0].input, outputs = model.layers[i].output)
-        get_layer_output = Model(inputs = model.layers[0].input, outputs = model.layers[i].output)
+        # get_layer_output = Model(inputs = model.layers[0].input, outputs = model.layers[i].output)
+        get_layer_output = Model(inputs=model_inputs, outputs=model.layers[i].output)
         outputs = get_layer_output(layer_input)
         #print(outputs.shape) # Check if the Output shape matches the shape of Model.summary()
         #print(outputs)   # If not Image, ie. Array, print the Values
 
-        if outputs.ndim == 4:             # Check for Dimensionality: FMs are 1,y,x,FMs)
-            # Normalise the weights so we can compare the strength across different filters
-            num_outputs = outputs.shape[3]
-            figure, axis = plt.subplots(1, num_outputs)
-            axis[0].set_title(f"OUTPUTS FOR {model.layers[i].name}")
-            o_min = np.min(outputs)
-            o_max = np.max(outputs)
-            outputs_NORM = outputs / (o_max - o_min)  # scale spread to 1
-            outputs_NORM = outputs_NORM - (o_min/(o_max-o_min))  # shift to 0..1
-            for o in range(num_outputs):
-                #print(f"OUTPUT {o+1}/{num_outputs}")
-                output = outputs[0,:,:,o]
-                #print(output)
+        # Normalise the weights so we can compare the strength across different filters
+        num_outputs = outputs.shape[-1]
+        figure, axis = plt.subplots(1, num_outputs)
+        axis[0].set_title(f"OUTPUTS FOR {model.layers[i].name}")
+        o_min = np.min(outputs)
+        o_max = np.max(outputs)
+        outputs_NORM = outputs / (o_max - o_min)  # scale spread to 1
+        outputs_NORM = outputs_NORM - (o_min/(o_max-o_min))  # shift to 0..1
+        for o in range(num_outputs):
+            if outputs.ndim == 4: # images
                 output_NORM = outputs_NORM[0,:,:,o]
-                axis[o].set_axis_off()
-                axis[o].imshow(output_NORM, cmap='gray', vmin=0, vmax=1)  # Plots the output of Conv2D and MaxPooling. Retains the same stretch across outputs
-            plt.show()
-
+            else: # vector
+                output_NORM = outputs_NORM[0,o]
+                output_NORM = np.expand_dims(output_NORM, axis=(0,1)) # turn into a 2d image instead of 0d number
+            axis[o].set_axis_off()
+            axis[o].imshow(output_NORM, cmap='gray', vmin=0, vmax=1)  # Plots the output of Conv2D and MaxPooling. Retains the same stretch across outputs
+            
+def plot_history(history, epochs, accuracy='accuracy'):
+    acc = history.history[accuracy]
+    val_acc = history.history["val_" + accuracy]
+    
+    loss = history.history["loss"]
+    val_loss = history.history["val_loss"]
+    
+    epochs_range = range(epochs)
+    
+    plt.figure(figsize=(8, 8))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, acc, label="Training Accuracy")
+    plt.plot(epochs_range, val_acc, label="Validation Accuracy")
+    plt.legend(loc="lower right")
+    plt.title("Training and Validation Accuracy")
+    
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, loss, label="Training Loss")
+    plt.plot(epochs_range, val_loss, label="Validation Loss")
+    plt.legend(loc="upper right")
+    plt.title("Training and Validation Loss")
+    plt.show()

@@ -1,0 +1,11 @@
+Cebysa_leucotelus
+Hyphantria_cunea
+Lymantria_dispar
+Nyctemera_amicus
+Nyctemera_amicus_x_annulata
+Nyctemera_annulata
+Orgyia_thyellina
+Teia_anartoides
+Tyria_jacobaeae
+Utetheisa_lotrix
+Utetheisa_pulchelloides
